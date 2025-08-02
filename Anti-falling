@@ -1,0 +1,47 @@
+if game.PlaceId ~= 2474168535 then
+    warn("其他服务器没用😅")
+    return
+end
+
+repeat task.wait() until game:IsLoaded()
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+
+repeat task.wait() until LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+
+pcall(function()
+    local RagdollScript = require(ReplicatedStorage.SharedModules.Ragdoll)
+    hookfunction(RagdollScript.EnableRagdoll, function()
+    end)
+end)
+
+
+local oldNamecall
+oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
+    local namecallMethod = getnamecallmethod()
+    local arguments = {...}
+
+    if not checkcaller() and namecallMethod == "FireServer" and self.Name == "ChangeCharacter" then
+        
+        local actionType = arguments[1]
+
+        if actionType == "Damage" then
+            arguments[2] = 0
+            return self.FireServer(self, unpack(arguments))
+
+        elseif actionType == "Ragdoll" then
+            return nil
+        end
+    end
+
+    return oldNamecall(self, ...)
+end)
+
+
+pcall(function()
+    local Notification = require(LocalPlayer.PlayerScripts.NotificationModule)
+    Notification("有效", Color3.fromRGB(100, 255, 100))
+    Notification("无坠落伤害 禁用布娃娃", Color3.fromRGB(170, 250, 255))
+end)
