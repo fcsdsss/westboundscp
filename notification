@@ -1,0 +1,15 @@
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+
+while true do
+    pcall(function()
+        local playerScripts = LocalPlayer:WaitForChild("PlayerScripts")
+        local NotificationModule = playerScripts:WaitForChild("NotificationModule")
+        local Notification = require(NotificationModule)
+
+        Notification("获取脚本", Color3.fromRGB(100, 255, 100))
+        Notification("加入q群586838631", Color3.fromRGB(170, 250, 255))
+    end)
+    
+    wait(60)
+end
