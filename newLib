@@ -1,0 +1,157 @@
+local function createPlayerEnhancementsModule()
+    -- 短暂等待，确保 Night UI 的所有组件都已完全准备就绪
+    task.wait(0.5)
+
+    -- 检查 Night 环境是否正确加载
+    if not (getgenv().Night and getgenv().Night.Assets and getgenv().Night.Tabs) then
+        warn("Night UI未能正确加载或初始化。模块创建已中止。")
+        if game:GetService("CoreGui"):FindFirstChild("Night_Notice") == nil then
+             local notice = Instance.new("ScreenGui")
+             notice.Name = "Night_Notice"
+             notice.Parent = game:GetService("CoreGui")
+             local label = Instance.new("TextLabel", notice)
+             label.Text = "Night UI未能加载，模块创建失败。\n请检查执行器或网络环境后重试。"
+             label.Size = UDim2.new(1, 0, 0, 100)
+             label.Position = UDim2.new(0, 0, 0.4, 0)
+             label.BackgroundColor3 = Color3.new(0, 0, 0)
+             label.BackgroundTransparency = 0.4
+             label.TextColor3 = Color3.new(1, 1, 1)
+             label.Font = Enum.Font.SourceSansBold
+             label.TextSize = 24
+             task.wait(7)
+             notice:Destroy()
+        end
+        return
+    end
+
+    -- 1. 初始化 Night 变量和常用服务
+    local Night = getgenv().Night
+    local Functions = Night.Assets.Functions
+    local Tabs = Night.Tabs.Tabs
+    local plrs = Functions.cloneref(game:GetService("Players"))
+    local lplr = plrs.LocalPlayer
+
+    -- 2. 创建数据表来存储模块的状态
+    local ModuleData = {
+        Toggle = nil,
+        UnlimitedStamina = false,
+        WalkSpeed = 16,
+        JumpPower = 50,
+        WelcomeMessage = "欢迎！"
+    }
+
+    -- 3. 在 "Player" 标签页下创建新模块
+    ModuleData.Toggle = Tabs.Player.Functions.NewModule({
+        Name = '玩家增强',
+        Description = '增强玩家能力的各种功能。',
+        Icon = 'rbxassetid://10628748349', -- 示例图标
+        Flag = 'PlayerEnhancements_Integrated', -- 使用唯一Flag避免冲突
+        Callback = function(self, enabled)
+            if enabled then
+                Functions.Notify(ModuleData.WelcomeMessage, 5)
+                if lplr.Character and lplr.Character:FindFirstChild("Humanoid") then
+                    lplr.Character.Humanoid.WalkSpeed = ModuleData.WalkSpeed
+                    lplr.Character.Humanoid.JumpPower = ModuleData.JumpPower
+                end
+            else
+                Functions.Notify('玩家增强模块已禁用！', 3)
+                if lplr.Character and lplr.Character:FindFirstChild("Humanoid") then
+                    lplr.Character.Humanoid.WalkSpeed = 16 -- 恢复默认速度
+                    lplr.Character.Humanoid.JumpPower = 50 -- 恢复默认跳跃高度
+                end
+            end
+        end
+    })
+
+    -- 4. 添加各种设置控件
+
+    -- 迷你开关：无限体力
+    ModuleData.Toggle.Functions.Settings.MiniToggle({
+        Name = '无限体力',
+        Description = "启用后，玩家将拥有无限体力。",
+        Flag = 'UnlimitedStaminaToggle_Integrated',
+        Default = false,
+        Callback = function(self, enabled)
+            ModuleData.UnlimitedStamina = enabled
+            Functions.Notify('无限体力: ' .. (enabled and '开启' or '关闭'), 3)
+            -- 在此添加无限体力的具体实现逻辑
+        end
+    })
+
+    -- 滑块：移动速度
+    ModuleData.Toggle.Functions.Settings.Slider({
+        Name = '移动速度',
+        Description = "调整玩家的移动速度。",
+        Min = 16,
+        Max = 100,
+        Default = 16,
+        Decimals = 0,
+        Flag = 'WalkSpeedSlider_Integrated',
+        Callback = function(self, value)
+            ModuleData.WalkSpeed = value
+            if ModuleData.Toggle.Data.Enabled and lplr.Character and lplr.Character:FindFirstChild("Humanoid") then
+                lplr.Character.Humanoid.WalkSpeed = value
+            end
+        end
+    })
+
+    -- 下拉菜单：跳跃高度
+    ModuleData.Toggle.Functions.Settings.Dropdown({
+        Name = '跳跃高度',
+        Description = "选择不同的跳跃高度。",
+        Default = '默认',
+        Options = {'默认', '高', '超高'},
+        SelectLimit = 1,
+        Flag = 'JumpPowerDropdown_Integrated',
+        Callback = function(self, value)
+            local jumpPowerMap = { ['默认'] = 50, ['高'] = 100, ['超高'] = 150 }
+            ModuleData.JumpPower = jumpPowerMap[value] or 50
+            if ModuleData.Toggle.Data.Enabled and lplr.Character and lplr.Character:FindFirstChild("Humanoid") then
+                lplr.Character.Humanoid.JumpPower = ModuleData.JumpPower
+            end
+        end
+    })
+
+    -- 文本框：自定义欢迎消息
+    ModuleData.Toggle.Functions.Settings.TextBox({
+        Name = '欢迎消息',
+        Description = "输入在模块启用时显示的欢迎消息。",
+        Default = "欢迎使用增强模块！",
+        PlaceHolderText = '在此输入消息...',
+        Flag = 'WelcomeMessageTextBox_Integrated',
+        Callback = function(self, text)
+            ModuleData.WelcomeMessage = text
+        end
+    })
+    
+    -- 发送一条通知，确认模块已成功加载
+    Functions.Notify('一体化玩家增强模块已加载！', 5)
+end
+
+-- =================================================================
+--                      主执行逻辑
+-- =================================================================
+
+-- 检查 Night 是否已经加载
+if getgenv().Night and getgenv().Night.Tabs then
+    -- 如果已加载，直接创建模块
+    print("Night UI 已加载。正在创建自定义模块...")
+    createPlayerEnhancementsModule()
+else
+    -- 如果未加载，则先加载 Night UI
+    print("Night UI 未加载。正在尝试加载...")
+    local success, result = pcall(function()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/null-wtf/Night/refs/heads/main/Night/Loader.luau"))()
+    end)
+
+    if not success then
+        warn("加载 Night UI 失败:", result)
+        print("错误：无法加载 Night UI。请检查您的网络连接或脚本状态。")
+    else
+        print("Night UI 加载器已执行。正在等待初始化完成...")
+        -- 使用循环等待，直到 Night 环境完全可用
+        repeat task.wait() until getgenv().Night and getgenv().Night.Tabs
+        print("Night UI 初始化完成。正在创建自定义模块...")
+        createPlayerEnhancementsModule()
+    end
+end
