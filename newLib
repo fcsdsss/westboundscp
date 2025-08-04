@@ -1,184 +1,138 @@
 -- =================================================================
---      Night UI 最终模板：完全自定义标签页加载器
---      执行此脚本将移除所有默认标签，并创建您自己的UI结构
+--      最终版：包含加载器的一体化“物品自动拾取器”脚本
+--          执行此脚本将自动加载 Night UI 并创建自定义模块
 -- =================================================================
 
-if not game:IsLoaded() then
-    game.Loaded:Wait()
-end
+-- 步骤 1: 定义我们的自定义模块创建函数
+-- 我们将所有自定义逻辑都放在这个函数里，方便之后调用
+local function createOurCustomModule()
+    -- 短暂等待，确保 Night UI 的所有组件都已完全准备就绪
+    task.wait(0.5)
 
-local NightInit = getgenv().NightInit :: {}
-
-if getgenv().Night then
-    return error("Night is already loaded.")
-end
-
--- [核心加载逻辑 - 无需修改]
-local Night = {
-    Version = "", Dev = false, Connections = {}, Pages = {}, Tabs = {Tabs = {}}, Corners = {}, Load = os.clock(),
-    Notifications = {Objects = {}, Active = {}}, ArrayList = {Objects = {}, Loaded = false}, ControlsVisible = true,
-    Mobile = false, CurrentOpenTab = nil, GameSave = game.PlaceId, CheckOtherConfig = true, Assets = {},
-    Teleporting = false, InitSave = nil,
-    Config = {
-        UI = { Position = {X = 0.5, Y = 0.5}, Size = {X = 0.37294304370880129, Y = 0.683131217956543}, FullScreen = false,
-            ToggleKeyCode = "LeftAlt", Scale = 1, Notifications = true, Anim = true, ArrayList = false,
-            TabColor = {value1 = 25, value2 = 25, value3 = 25}, TabTransparency = 0.03, KeybindTransparency = 0.7,
-            KeybindColor = {value1 = 0, value2 = 0, value3 = 0},
-        },
-        Game = { Modules = {}, Keybinds = {}, Sliders = {}, TextBoxes = {}, MiniToggles = {}, Dropdowns = {}, ModuleKeybinds = {}, Other = {} },
-    },
-    Directories = { "Night", "Night/Config", "Night/Assets", "Night/Assets/Fonts" }
-}
-getgenv().Night = Night
-for i,v: string in Night.Directories do if not isfolder(v) then makefolder(v) end end
-if NightInit then for i,v in NightInit do Night[i] = v end; Night.InitSave = NightInit; getgenv().NightInit = nil end
-if Night.Premium then if Night.Dev and isfile("Night/Premium/Init.lua") then loadstring(readfile("Night/Premium/Init.lua"))() else loadstring(game:HttpGet("https://raw.githubusercontent.com/null-wtf/Night/refs/heads/main/Night/Premium/Init.lua"))() end else if Night.Dev and isfile("Night/Library/Init.lua") then loadstring(readfile("Night/Library/Init.lua"))() else loadstring(game:HttpGet("https://raw.githubusercontent.com/null-wtf/Night/refs/heads/main/Night/Library/Init.lua"))() end end
-local Assets = getgenv().Night.Assets
-if not Assets or typeof(Assets) ~= "table" or (Assets and not Assets.Functions) then table.clear(Night); return warn("Failed to load Functions, Night uninjected") end
-local UserInputService = Assets.Functions.cloneref(game:GetService("UserInputService")) :: UserInputService
-local Workspace = Assets.Functions.cloneref(game:GetService("Workspace")) :: Workspace
-local Players = Assets.Functions.cloneref(game:GetService("Players")) :: Players
-local Camera = Workspace:FindFirstChildWhichIsA("Camera") :: Camera
-if not UserInputService.KeyboardEnabled and UserInputService.TouchEnabled then Night.Mobile = true; Night.Config.UI.Size = {X = 0.7, Y = 0.9} end
-local GameData = Assets.Functions.GetGameInfo()
-local UIConfig = Assets.Config.Load("UI", "UI")
-local GameConfig = Assets.Config.Load(tostring(Night.GameSave), "Game")
-if typeof(GameData) == "table" then Night.GameRootId = GameData.rootPlaceId; if Night.GameSave == "root" then Night.GameSave = tostring(Night.GameRootId) end end
-if UIConfig == "no file" then Assets.Config.Save("UI", Night.Config.UI) end
-if GameConfig == "no file" and Night.CheckOtherConfig then if Night.GameRootId == Night.GameSave then GameConfig = Assets.Config.Load(tostring(game.PlaceId), "Game") else GameConfig = Assets.Config.Load(tostring(Night.GameRootId), "Game") end end
-if GameConfig == "no file" then Assets.Config.Save(tostring(Night.GameSave), getgenv().Night.Config.Game) end
-Assets.Main.Load("Universal")
-Assets.Main.Load(getgenv().Night.GameSave)
-Assets.Main.ToggleVisibility(true)
-if queue_on_teleport then table.insert(Night.Connections, Players.LocalPlayer.OnTeleport:Connect(function(state) if not Night.Teleporting then Night.Teleporting = true; local TeleportData = ""; if Night.InitSave then TeleportData = "getgenv().NightInit = {"; for i, v in Night.InitSave do if i ~= #Night.InitSave then if typeof(v) == "string" then TeleportData = TeleportData..tostring(i)..' = "'..tostring(v)..'" , ' else TeleportData = TeleportData..tostring(i).." = "..tostring(v).." , " end end end; TeleportData = string.sub(TeleportData, 0, #TeleportData-2).."}\n" end; if Night.Premium then TeleportData = TeleportData..[[ if not game:IsLoaded() then game.Loaded:Wait() end; if getgenv().NightInit and getgenv().NightInit.Dev and isfile("Night/Premium/Loader.lua") then loadstring(readfile("Night/Premium/Loader.lua"))() else loadstring(game:HttpGet("https://raw.githubusercontent.com/null-wtf/Night/refs/heads/main/Night/Premium/Loader.lua"))() end ]] else TeleportData = TeleportData..[[ if not game:IsLoaded() then game.Loaded:Wait() end; if getgenv().NightInit and getgenv().NightInit.Dev and isfile("Night/Loader.lua") then loadstring(readfile("Night/Loader.lua"))() else loadstring(game:HttpGet("https://raw.githubusercontent.com/null-wtf/Night/refs/heads/main/Night/Loader.luau"))() end ]] end; queue_on_teleport(TeleportData) end end)) end
-if Night.Mobile then if Camera then if 0.4 >= (Camera.ViewportSize.X / 1000) - 0.1 then Night.Config.UI.Scale = 0.4 else Night.Config.UI.Scale = (Camera.ViewportSize.X / 1000) - 0.1 end end end
--- [核心加载逻辑结束]
-
-
--- =================================================================
---                 --- [自定义UI模板开始] ---
---          在这里修改，打造您专属的 Night UI 界面
--- =================================================================
-
-local function setupCustomUI()
-    task.wait() -- 等待UI完全初始化
-
-    local NightEnv = getgenv().Night
-    if not (NightEnv and NightEnv.Tabs and NightEnv.Tabs.Functions) then return end
-
-    local Tabs = NightEnv.Tabs
-    local Functions = NightEnv.Assets.Functions
-    local lplr = Functions.cloneref(game:GetService("Players")).LocalPlayer
-
-    -- 步骤 1: 移除所有默认标签页
-    local defaultTabsToRemove = {"Player", "Combat", "Movement", "Render", "Utility", "World"}
-    for _, tabName in ipairs(defaultTabsToRemove) do
-        if Tabs.Tabs[tabName] and Tabs.Tabs[tabName].Functions and Tabs.Tabs[tabName].Functions.Remove then
-            pcall(Tabs.Tabs[tabName].Functions.Remove)
-        end
-    end
-    
-    -- 步骤 2: 【请在这里修改】定义您自己的标签页名称
-    local customTabsToCreate = {
-        "我的主页",
-        "战斗助手",
-        "世界设定",
-        "杂项功能",
-        "关于"
-    }
-
-    -- 步骤 3: 创建您的新标签页
-    for _, tabName in ipairs(customTabsToCreate) do
-        Tabs.Functions.NewTab(tabName)
-    end
-
-    Functions.Notify('自定义UI界面已创建！', 4)
-
-    -- 步骤 4: 【套用示例】将您的模块添加到新的标签页中
-    -- 注意：我们将把“玩家增强”模块添加到我们创建的第一个新标签页 "我的主页" 中
-    
-    -- 检查我们创建的标签页是否存在
-    local myHomePage = Tabs.Tabs["我的主页"]
-    if not myHomePage then
-        warn("无法找到自定义标签页 '我的主页'。模块未加载。")
+    -- 再次检查 Night 环境是否正确加载
+    if not (getgenv().Night and getgenv().Night.Tabs and getgenv().Night.Assets) then
+        warn("Night UI 未能正确初始化。自定义模块创建已中止。")
         return
     end
 
-    -- 开始创建模块内容
+    -- 初始化 Night 变量和常用服务
+    local Night = getgenv().Night
+    local Functions = Night.Assets.Functions
+    local Tabs = Night.Tabs.Tabs
+    local plrs = Functions.cloneref(game:GetService("Players"))
+    local ws = Functions.cloneref(game:GetService("Workspace"))
+    local tweenService = Functions.cloneref(game:GetService("TweenService"))
+    local lplr = plrs.LocalPlayer
+
+    -- 创建数据表来存储模块的所有状态
     local ModuleData = {
-        Toggle = nil, WalkSpeed = 16, JumpPower = 50, WelcomeMessage = "欢迎来到我的定制UI！"
+        Toggle = nil,
+        ItemNames = "Cash,Coin,Gem",
+        CollectionRadius = 50,
+        CollectionMethod = "吸附物品",
+        NotifyOnCollect = true,
+        IsEnabled = false
     }
 
-    ModuleData.Toggle = myHomePage.Functions.NewModule({
-        Name = '玩家增强',
-        Description = '这是一个放在自定义标签页的模块。',
-        Icon = 'rbxassetid://10628748349',
-        Flag = 'CustomPlayerEnhancements',
+    -- 在 "Utility" 标签页下创建我们的新模块
+    ModuleData.Toggle = Tabs.Utility.Functions.NewModule({
+        Name = '物品自动拾取器',
+        Description = '自动拾取指定范围内的特定物品。',
+        Icon = 'rbxassetid://7992268335',
+        Flag = 'ItemCollectorModule_Integrated',
         Callback = function(self, enabled)
+            ModuleData.IsEnabled = enabled
             if enabled then
-                Functions.Notify(ModuleData.WelcomeMessage, 5)
-                if lplr.Character and lplr.Character:FindFirstChild("Humanoid") then
-                    lplr.Character.Humanoid.WalkSpeed = ModuleData.WalkSpeed
-                    lplr.Character.Humanoid.JumpPower = ModuleData.JumpPower
-                end
+                Functions.Notify('物品拾取器已启动！', 4)
+                task.spawn(function()
+                    repeat
+                        task.wait(0.2)
+                        if not ModuleData.IsEnabled then break end
+                        local character = lplr.Character
+                        local rootPart = character and character:FindFirstChild("HumanoidRootPart")
+                        if not rootPart then continue end
+
+                        local itemsToFind = {}
+                        for item in string.gmatch(ModuleData.ItemNames, "[^,]+") do
+                            table.insert(itemsToFind, string.gsub(item, "%s+", ""))
+                        end
+                        if #itemsToFind == 0 then continue end
+
+                        for _, item in ipairs(ws:GetDescendants()) do
+                            if table.find(itemsToFind, item.Name) and item:IsA("BasePart") then
+                                if (rootPart.Position - item.Position).Magnitude <= ModuleData.CollectionRadius then
+                                    if ModuleData.CollectionMethod == "传送至物品" then
+                                        rootPart.CFrame = item.CFrame * CFrame.new(0, 3, 0)
+                                    else
+                                        local tween = tweenService:Create(item, TweenInfo.new(0.3), {CFrame = rootPart.CFrame})
+                                        tween:Play()
+                                    end
+                                    if ModuleData.NotifyOnCollect then
+                                        Functions.Notify("成功拾取: " .. item.Name, 2)
+                                    end
+                                    task.wait(0.1)
+                                end
+                            end
+                        end
+                    until not ModuleData.IsEnabled
+                end)
             else
-                Functions.Notify('玩家增强模块已禁用！', 3)
-                if lplr.Character and lplr.Character:FindFirstChild("Humanoid") then
-                    lplr.Character.Humanoid.WalkSpeed = 16
-                    lplr.Character.Humanoid.JumpPower = 50
-                end
+                Functions.Notify('物品拾取器已停止。', 3)
             end
         end
     })
 
     -- 为模块添加控件
+    ModuleData.Toggle.Functions.Settings.TextBox({
+        Name = '物品名称', Description = "输入要拾取的物品名，用逗号(,)隔开。", Default = ModuleData.ItemNames,
+        PlaceHolderText = '例如: Cash,Coin,Gem', Flag = 'ItemCollector_Names_Integrated',
+        Callback = function(_, text) ModuleData.ItemNames = text end
+    })
     ModuleData.Toggle.Functions.Settings.Slider({
-        Name = '移动速度', Min = 16, Max = 100, Default = 16, Decimals = 0, Flag = 'CustomWalkSpeed',
-        Callback = function(_, value) ModuleData.WalkSpeed = value; if ModuleData.Toggle.Data.Enabled and lplr.Character and lplr.Character:FindFirstChild("Humanoid") then lplr.Character.Humanoid.WalkSpeed = value end end
+        Name = '拾取半径', Description = "设置拾取物品的最大距离。", Min = 10, Max = 500,
+        Default = ModuleData.CollectionRadius, Decimals = 0, Flag = 'ItemCollector_Radius_Integrated',
+        Callback = function(_, value) ModuleData.CollectionRadius = value end
     })
     ModuleData.Toggle.Functions.Settings.Dropdown({
-        Name = '跳跃高度', Default = '默认', Options = {'默认', '高', '超高'}, SelectLimit = 1, Flag = 'CustomJumpPower',
-        Callback = function(_, value) local p = {['默认']=50,['高']=100,['超高']=150}; ModuleData.JumpPower = p[value] or 50; if ModuleData.Toggle.Data.Enabled and lplr.Character and lplr.Character:FindFirstChild("Humanoid") then lplr.Character.Humanoid.JumpPower = ModuleData.JumpPower end end
+        Name = '拾取方式', Description = "选择如何获取物品。", Default = ModuleData.CollectionMethod,
+        Options = {'吸附物品', '传送至物品'}, SelectLimit = 1, Flag = 'ItemCollector_Method_Integrated',
+        Callback = function(_, value) ModuleData.CollectionMethod = value end
     })
-    ModuleData.Toggle.Functions.Settings.TextBox({
-        Name = '欢迎消息', Default = "欢迎来到我的定制UI！", PlaceHolderText = '输入消息...', Flag = 'CustomWelcomeMsg',
-        Callback = function(_, text) ModuleData.WelcomeMessage = text end
+    ModuleData.Toggle.Functions.Settings.MiniToggle({
+        Name = '拾取通知', Description = "在成功拾取物品时显示一条通知。", Default = ModuleData.NotifyOnCollect,
+        Flag = 'ItemCollector_Notify_Integrated',
+        Callback = function(_, enabled) ModuleData.NotifyOnCollect = enabled end
     })
 
-    -- 您可以继续在这里为其他自定义标签页（如“战斗助手”）添加更多模块...
-    -- local combatHelperPage = Tabs.Tabs["战斗助手"]
-    -- if combatHelperPage then
-    --     combatHelperPage.Functions.NewModule({ Name = '自动攻击', ... })
-    -- end
-
+    Functions.Notify('专属“物品拾取器”模块已成功加载！', 5)
 end
 
--- 执行我们的自定义UI设置函数
-setupCustomUI()
 
--- =================================================================
---                  --- [自定义UI模板结束] ---
--- =================================================================
+-- 步骤 2: 主执行逻辑
+-- 检查 Night UI 是否已经存在
+if getgenv().Night and getgenv().Night.Loaded then
+    -- 如果已经加载，直接创建我们的模块
+    print("Night UI 已加载。正在创建自定义模块...")
+    createOurCustomModule()
+else
+    -- 如果未加载，则先加载 Night UI
+    print("Night UI 未被加载。正在执行加载器...")
+    
+    -- 使用 pcall 来安全地执行加载，防止因网络问题等导致整个脚本失败
+    local success, err = pcall(function()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/null-wtf/Night/refs/heads/main/Night/Loader.luau"))()
+    end)
 
-
--- [原始加载器收尾工作 - 无需修改]
-Night.Main = Assets.Main
-Night.LoadTime = os.clock() - Night.Load
-Assets.Notifications.Send({
-    Description = "Night 已加载, 用时 " .. string.format("%.1f", getgenv().Night.LoadTime) .. " 秒",
-    Duration = 5
-})
-task.delay(0.2, function()
-    if not isfile("Night/Version.txt") then
-        writefile("Night/Version.txt", "Current version: " .. Night.Version)
-        Assets.Notifications.Send({ Description = "Night 已更新至 " .. Night.Version, Duration = 15 })
+    if success then
+        print("Night UI 加载器已执行。正在等待其完全初始化...")
+        
+        -- 持续等待，直到 Night 环境完全准备就绪
+        repeat task.wait() until getgenv().Night and getgenv().Night.Loaded
+        
+        print("Night UI 初始化完成。现在创建我们的自定义模块...")
+        createOurCustomModule()
     else
-        local BuildData = readfile("Night/Version.txt")
-        if BuildData ~= "Current version: " .. Night.Version then
-            Assets.Notifications.Send({ Description = "Night 已更新至 " .. Night.Version, Duration = 15 })
-            writefile("Night/Version.txt", "Current version: " .. Night.Version)
-        end
+        -- 如果加载失败，在控制台输出错误信息
+        warn("加载 Night UI 时发生错误: ", err)
     end
-end)
-Night.Loaded = true
-return Assets.Main
+end
