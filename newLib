@@ -1,17 +1,16 @@
 -- =================================================================
---      最终版：包含加载器的一体化“物品自动拾取器”脚本
---          执行此脚本将自动加载 Night UI 并创建自定义模块
+--      为您的新 Night 库打造的专属示例：玩家透视 (ESP)
+--      执行此脚本将自动加载您的UI库并创建功能强大的ESP模块
 -- =================================================================
 
 -- 步骤 1: 定义我们的自定义模块创建函数
--- 我们将所有自定义逻辑都放在这个函数里，方便之后调用
-local function createOurCustomModule()
-    -- 短暂等待，确保 Night UI 的所有组件都已完全准备就绪
+local function createPlayerESPModule()
+    -- 短暂等待，确保UI完全初始化
     task.wait(0.5)
 
     -- 再次检查 Night 环境是否正确加载
     if not (getgenv().Night and getgenv().Night.Tabs and getgenv().Night.Assets) then
-        warn("Night UI 未能正确初始化。自定义模块创建已中止。")
+        warn("您的新 Night UI 未能正确初始化。模块创建已中止。")
         return
     end
 
@@ -19,120 +18,185 @@ local function createOurCustomModule()
     local Night = getgenv().Night
     local Functions = Night.Assets.Functions
     local Tabs = Night.Tabs.Tabs
-    local plrs = Functions.cloneref(game:GetService("Players"))
-    local ws = Functions.cloneref(game:GetService("Workspace"))
-    local tweenService = Functions.cloneref(game:GetService("TweenService"))
-    local lplr = plrs.LocalPlayer
+    
+    local Players = game:GetService("Players")
+    local RunService = game:GetService("RunService")
+    local LocalPlayer = Players.LocalPlayer
+    local Camera = workspace.CurrentCamera
 
-    -- 创建数据表来存储模块的所有状态
+    -- 检查 "Render" 标签页是否存在，如果不存在就创建一个
+    if not Tabs.Tabs.Render then
+        Assets.Dashboard.NewTab({
+            Name = "Render",
+            Icon = "rbxassetid://6037962793", -- 一个眼睛图标
+            TabInfo = "视觉增强功能",
+            Dashboard = Night.Dashboard
+        })
+    end
+
+    -- 创建一个数据表来存储我们模块的所有状态
     local ModuleData = {
         Toggle = nil,
-        ItemNames = "Cash,Coin,Gem",
-        CollectionRadius = 50,
-        CollectionMethod = "吸附物品",
-        NotifyOnCollect = true,
-        IsEnabled = false
+        Box = true,
+        Name = true,
+        Tracer = false,
+        Team = "Enemies",
+        Distance = 300,
+        IsEnabled = false,
+        Connections = {} -- 用于管理我们的循环连接
     }
 
-    -- 在 "Utility" 标签页下创建我们的新模块
-    ModuleData.Toggle = Tabs.Utility.Functions.NewModule({
-        Name = '物品自动拾取器',
-        Description = '自动拾取指定范围内的特定物品。',
-        Icon = 'rbxassetid://7992268335',
-        Flag = 'ItemCollectorModule_Integrated',
+    -- 创建一个简单的绘制对象表，用于管理ESP元素
+    local Drawings = {}
+
+    -- 清理所有绘制对象的函数
+    local function clearDrawings()
+        for _, drawing in ipairs(Drawings) do
+            if drawing and drawing.Remove then
+                drawing:Remove()
+            end
+        end
+        table.clear(Drawings)
+    end
+
+    -- 在 "Render" 标签页下创建我们的新模块
+    ModuleData.Toggle = Tabs.Render.Functions.NewModule({
+        Name = '玩家透视',
+        Description = '在屏幕上显示其他玩家的位置和信息。',
+        Icon = 'rbxassetid://6037962793',
+        Flag = 'PlayerESP_Custom',
         Callback = function(self, enabled)
             ModuleData.IsEnabled = enabled
+
             if enabled then
-                Functions.Notify('物品拾取器已启动！', 4)
-                task.spawn(function()
-                    repeat
-                        task.wait(0.2)
-                        if not ModuleData.IsEnabled then break end
-                        local character = lplr.Character
-                        local rootPart = character and character:FindFirstChild("HumanoidRootPart")
-                        if not rootPart then continue end
+                Functions.Notify('玩家透视已启动！', 4)
+                
+                -- 当模块启用时，连接到RenderStepped事件进行逐帧绘制
+                ModuleData.Connections.RenderStepped = RunService.RenderStepped:Connect(function()
+                    -- 在绘制新一帧前，先清除旧的绘制对象
+                    clearDrawings()
 
-                        local itemsToFind = {}
-                        for item in string.gmatch(ModuleData.ItemNames, "[^,]+") do
-                            table.insert(itemsToFind, string.gsub(item, "%s+", ""))
-                        end
-                        if #itemsToFind == 0 then continue end
+                    for _, player in ipairs(Players:GetPlayers()) do
+                        -- 进行各种有效性检查
+                        if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") and player.Character:FindFirstChild("Humanoid") then
+                            local humanoid = player.Character.Humanoid
+                            local rootPart = player.Character.HumanoidRootPart
+                            
+                            if humanoid.Health > 0 then
+                                -- 检查队伍
+                                local isEnemy = player.Team ~= LocalPlayer.Team
+                                if (ModuleData.Team == "Enemies" and not isEnemy) or (ModuleData.Team == "Allies" and isEnemy) then
+                                    continue
+                                end
 
-                        for _, item in ipairs(ws:GetDescendants()) do
-                            if table.find(itemsToFind, item.Name) and item:IsA("BasePart") then
-                                if (rootPart.Position - item.Position).Magnitude <= ModuleData.CollectionRadius then
-                                    if ModuleData.CollectionMethod == "传送至物品" then
-                                        rootPart.CFrame = item.CFrame * CFrame.new(0, 3, 0)
-                                    else
-                                        local tween = tweenService:Create(item, TweenInfo.new(0.3), {CFrame = rootPart.CFrame})
-                                        tween:Play()
+                                -- 检查距离
+                                local distance = (rootPart.Position - Camera.CFrame.Position).Magnitude
+                                if distance > ModuleData.Distance then
+                                    continue
+                                end
+
+                                -- 计算屏幕坐标
+                                local screenPos, onScreen = Camera:WorldToScreenPoint(rootPart.Position)
+                                if onScreen then
+                                    local espColor = isEnemy and Color3.fromRGB(255, 80, 80) or Color3.fromRGB(80, 255, 80)
+
+                                    -- 绘制方框
+                                    if ModuleData.Box then
+                                        local box = Drawing.new("Quad")
+                                        box.Visible = true
+                                        box.PointA = Vector2.new(screenPos.X - 20, screenPos.Y - 35)
+                                        box.PointB = Vector2.new(screenPos.X + 20, screenPos.Y - 35)
+                                        box.PointC = Vector2.new(screenPos.X + 20, screenPos.Y + 35)
+                                        box.PointD = Vector2.new(screenPos.X - 20, screenPos.Y + 35)
+                                        box.Color = espColor
+                                        box.Thickness = 1
+                                        box.Filled = false
+                                        table.insert(Drawings, box)
                                     end
-                                    if ModuleData.NotifyOnCollect then
-                                        Functions.Notify("成功拾取: " .. item.Name, 2)
+
+                                    -- 绘制名称
+                                    if ModuleData.Name then
+                                        local nameLabel = Drawing.new("Text")
+                                        nameLabel.Visible = true
+                                        nameLabel.Text = player.Name .. " [" .. math.floor(distance) .. "m]"
+                                        nameLabel.Size = 16
+                                        nameLabel.Center = true
+                                        nameLabel.Position = Vector2.new(screenPos.X, screenPos.Y - 45)
+                                        nameLabel.Color = espColor
+                                        table.insert(Drawings, nameLabel)
                                     end
-                                    task.wait(0.1)
+
+                                    -- 绘制射线
+                                    if ModuleData.Tracer then
+                                        local tracer = Drawing.new("Line")
+                                        tracer.Visible = true
+                                        tracer.From = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y)
+                                        tracer.To = Vector2.new(screenPos.X, screenPos.Y)
+                                        tracer.Color = espColor
+                                        tracer.Thickness = 1
+                                        table.insert(Drawings, tracer)
+                                    end
                                 end
                             end
                         end
-                    until not ModuleData.IsEnabled
+                    end
                 end)
             else
-                Functions.Notify('物品拾取器已停止。', 3)
+                Functions.Notify('玩家透视已停止。', 3)
+                -- 当模块禁用时，断开连接并清除所有绘制
+                if ModuleData.Connections.RenderStepped then
+                    ModuleData.Connections.RenderStepped:Disconnect()
+                    ModuleData.Connections.RenderStepped = nil
+                end
+                clearDrawings()
             end
         end
     })
 
-    -- 为模块添加控件
-    ModuleData.Toggle.Functions.Settings.TextBox({
-        Name = '物品名称', Description = "输入要拾取的物品名，用逗号(,)隔开。", Default = ModuleData.ItemNames,
-        PlaceHolderText = '例如: Cash,Coin,Gem', Flag = 'ItemCollector_Names_Integrated',
-        Callback = function(_, text) ModuleData.ItemNames = text end
-    })
-    ModuleData.Toggle.Functions.Settings.Slider({
-        Name = '拾取半径', Description = "设置拾取物品的最大距离。", Min = 10, Max = 500,
-        Default = ModuleData.CollectionRadius, Decimals = 0, Flag = 'ItemCollector_Radius_Integrated',
-        Callback = function(_, value) ModuleData.CollectionRadius = value end
-    })
+    -- 为我们的模块添加各种设置控件
+    ModuleData.Toggle.Functions.Settings.MiniToggle({ Name = '方框', Description = "在玩家周围绘制一个方框。", Flag = 'ESP_BoxToggle', Default = ModuleData.Box, Callback = function(_, e) ModuleData.Box = e end })
+    ModuleData.Toggle.Functions.Settings.MiniToggle({ Name = '名称', Description = "显示玩家的名称和距离。", Flag = 'ESP_NameToggle', Default = ModuleData.Name, Callback = function(_, e) ModuleData.Name = e end })
+    ModuleData.Toggle.Functions.Settings.MiniToggle({ Name = '射线', Description = "从屏幕底部绘制一条线到玩家。", Flag = 'ESP_TracerToggle', Default = ModuleData.Tracer, Callback = function(_, e) ModuleData.Tracer = e end })
+    
     ModuleData.Toggle.Functions.Settings.Dropdown({
-        Name = '拾取方式', Description = "选择如何获取物品。", Default = ModuleData.CollectionMethod,
-        Options = {'吸附物品', '传送至物品'}, SelectLimit = 1, Flag = 'ItemCollector_Method_Integrated',
-        Callback = function(_, value) ModuleData.CollectionMethod = value end
-    })
-    ModuleData.Toggle.Functions.Settings.MiniToggle({
-        Name = '拾取通知', Description = "在成功拾取物品时显示一条通知。", Default = ModuleData.NotifyOnCollect,
-        Flag = 'ItemCollector_Notify_Integrated',
-        Callback = function(_, enabled) ModuleData.NotifyOnCollect = enabled end
+        Name = '目标', Description = "选择要显示ESP的目标。", Default = ModuleData.Team,
+        Options = {'Enemies', 'Allies', 'Everyone'}, SelectLimit = 1, Flag = 'ESP_TeamSelect',
+        Callback = function(_, val) ModuleData.Team = val end
     })
 
-    Functions.Notify('专属“物品拾取器”模块已成功加载！', 5)
+    ModuleData.Toggle.Functions.Settings.Slider({
+        Name = '最大距离', Description = "设置ESP显示的最大距离。", Min = 50, Max = 2000,
+        Default = ModuleData.Distance, Decimals = 0, Flag = 'ESP_DistanceSlider',
+        Callback = function(_, val) ModuleData.Distance = val end
+    })
+
+    Functions.Notify('专属“玩家透视”模块已成功加载！', 5)
 end
 
 
 -- 步骤 2: 主执行逻辑
 -- 检查 Night UI 是否已经存在
 if getgenv().Night and getgenv().Night.Loaded then
-    -- 如果已经加载，直接创建我们的模块
-    print("Night UI 已加载。正在创建自定义模块...")
-    createOurCustomModule()
+    print("您的 Night UI 已加载。正在创建自定义模块...")
+    createPlayerESPModule()
 else
-    -- 如果未加载，则先加载 Night UI
-    print("Night UI 未被加载。正在执行加载器...")
+    print("您的 Night UI 未被加载。正在执行加载器...")
     
-    -- 使用 pcall 来安全地执行加载，防止因网络问题等导致整个脚本失败
+    -- 使用 pcall 来安全地执行加载
     local success, err = pcall(function()
-        loadstring(game:HttpGet("https://raw.githubusercontent.com/null-wtf/Night/refs/heads/main/Night/Loader.luau"))()
+        -- 【【【 这里使用的是您提供的链接 】】】
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/fcsdsss/games/refs/heads/main/ui%20lib/Night.lua"))()
     end)
 
     if success then
-        print("Night UI 加载器已执行。正在等待其完全初始化...")
+        print("UI 加载器已执行。正在等待其完全初始化...")
         
         -- 持续等待，直到 Night 环境完全准备就绪
         repeat task.wait() until getgenv().Night and getgenv().Night.Loaded
         
-        print("Night UI 初始化完成。现在创建我们的自定义模块...")
-        createOurCustomModule()
+        print("UI 初始化完成。现在创建我们的自定义模块...")
+        createPlayerESPModule()
     else
-        -- 如果加载失败，在控制台输出错误信息
-        warn("加载 Night UI 时发生错误: ", err)
+        warn("加载您的新 Night UI 时发生错误: ", err)
     end
 end
