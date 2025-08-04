@@ -1,6 +1,6 @@
 -- =================================================================
---      Night UI 修改版一体化加载器 (已内置“玩家增强”模块)
---      执行此脚本将直接加载 Night UI 和您的自定义模块
+--      Night UI 最终模板：完全自定义标签页加载器
+--      执行此脚本将移除所有默认标签，并创建您自己的UI结构
 -- =================================================================
 
 if not game:IsLoaded() then
@@ -10,225 +10,110 @@ end
 local NightInit = getgenv().NightInit :: {}
 
 if getgenv().Night then
-    -- 如果您希望每次执行都重新加载，可以注释掉下面的 return 语句
     return error("Night is already loaded.")
 end
 
+-- [核心加载逻辑 - 无需修改]
 local Night = {
-    Version = "",
-    Dev = false,
-    Connections = {},
-    Pages = {},
-    Tabs = {Tabs = {}},
-    Corners = {},
-    Load = os.clock(),
-    Notifications = {Objects = {}, Active = {}},
-    ArrayList = {Objects = {}, Loaded = false},
-    ControlsVisible = true,
-    Mobile = false,
-    CurrentOpenTab = nil,
-    GameSave = game.PlaceId,
-    CheckOtherConfig = true,
-    Assets = {},
-    Teleporting = false,
-    InitSave = nil,
+    Version = "", Dev = false, Connections = {}, Pages = {}, Tabs = {Tabs = {}}, Corners = {}, Load = os.clock(),
+    Notifications = {Objects = {}, Active = {}}, ArrayList = {Objects = {}, Loaded = false}, ControlsVisible = true,
+    Mobile = false, CurrentOpenTab = nil, GameSave = game.PlaceId, CheckOtherConfig = true, Assets = {},
+    Teleporting = false, InitSave = nil,
     Config = {
-        UI = {
-            Position = {X = 0.5, Y = 0.5},
-            Size = {X = 0.37294304370880129, Y = 0.683131217956543},
-            FullScreen = false,
-            ToggleKeyCode = "LeftAlt",
-            Scale = 1,
-            Notifications = true,
-            Anim = true,
-            ArrayList = false,
-            TabColor = {value1 = 25, value2 = 25, value3 = 25},
-            TabTransparency = 0.03,
-            KeybindTransparency = 0.7,
+        UI = { Position = {X = 0.5, Y = 0.5}, Size = {X = 0.37294304370880129, Y = 0.683131217956543}, FullScreen = false,
+            ToggleKeyCode = "LeftAlt", Scale = 1, Notifications = true, Anim = true, ArrayList = false,
+            TabColor = {value1 = 25, value2 = 25, value3 = 25}, TabTransparency = 0.03, KeybindTransparency = 0.7,
             KeybindColor = {value1 = 0, value2 = 0, value3 = 0},
         },
-        Game = {
-            Modules = {},
-            Keybinds = {},
-            Sliders = {},
-            TextBoxes = {},
-            MiniToggles = {},
-            Dropdowns = {},
-            ModuleKeybinds = {},
-            Other = {}
-        },
+        Game = { Modules = {}, Keybinds = {}, Sliders = {}, TextBoxes = {}, MiniToggles = {}, Dropdowns = {}, ModuleKeybinds = {}, Other = {} },
     },
-    Directories = {
-        "Night",
-        "Night/Config",
-        "Night/Assets",
-        "Night/Assets/Fonts"
-    }
+    Directories = { "Night", "Night/Config", "Night/Assets", "Night/Assets/Fonts" }
 }
-
 getgenv().Night = Night
-
-for i,v: string in Night.Directories do 
-    if not isfolder(v) then
-        makefolder(v)
-    end
-end
-
-if NightInit then
-    for i,v in NightInit do
-        Night[i] = v 
-    end
-
-    Night.InitSave = NightInit
-    getgenv().NightInit = nil
-end
-
--- 核心库加载 (从 GitHub 或本地文件)
-if Night.Premium then
-    if Night.Dev and isfile("Night/Premium/Init.lua") then
-        loadstring(readfile("Night/Premium/Init.lua"))()
-    else
-        loadstring(game:HttpGet("https://raw.githubusercontent.com/null-wtf/Night/refs/heads/main/Night/Premium/Init.lua"))()
-    end
-else
-    if Night.Dev and isfile("Night/Library/Init.lua") then
-        loadstring(readfile("Night/Library/Init.lua"))()
-    else
-        loadstring(game:HttpGet("https://raw.githubusercontent.com/null-wtf/Night/refs/heads/main/Night/Library/Init.lua"))()
-    end
-end
-
+for i,v: string in Night.Directories do if not isfolder(v) then makefolder(v) end end
+if NightInit then for i,v in NightInit do Night[i] = v end; Night.InitSave = NightInit; getgenv().NightInit = nil end
+if Night.Premium then if Night.Dev and isfile("Night/Premium/Init.lua") then loadstring(readfile("Night/Premium/Init.lua"))() else loadstring(game:HttpGet("https://raw.githubusercontent.com/null-wtf/Night/refs/heads/main/Night/Premium/Init.lua"))() end else if Night.Dev and isfile("Night/Library/Init.lua") then loadstring(readfile("Night/Library/Init.lua"))() else loadstring(game:HttpGet("https://raw.githubusercontent.com/null-wtf/Night/refs/heads/main/Night/Library/Init.lua"))() end end
 local Assets = getgenv().Night.Assets
-if not Assets or typeof(Assets) ~= "table" or (Assets and not Assets.Functions) then
-    table.clear(Night)
-    return warn("Failed to load Functions, Night uninjected")
-end
-
--- 标准服务和变量设置
+if not Assets or typeof(Assets) ~= "table" or (Assets and not Assets.Functions) then table.clear(Night); return warn("Failed to load Functions, Night uninjected") end
 local UserInputService = Assets.Functions.cloneref(game:GetService("UserInputService")) :: UserInputService
 local Workspace = Assets.Functions.cloneref(game:GetService("Workspace")) :: Workspace
 local Players = Assets.Functions.cloneref(game:GetService("Players")) :: Players
 local Camera = Workspace:FindFirstChildWhichIsA("Camera") :: Camera
-
-if not UserInputService.KeyboardEnabled and UserInputService.TouchEnabled then
-    Night.Mobile = true
-    Night.Config.UI.Size = {X = 0.7, Y = 0.9}
-end
-
+if not UserInputService.KeyboardEnabled and UserInputService.TouchEnabled then Night.Mobile = true; Night.Config.UI.Size = {X = 0.7, Y = 0.9} end
 local GameData = Assets.Functions.GetGameInfo()
 local UIConfig = Assets.Config.Load("UI", "UI")
 local GameConfig = Assets.Config.Load(tostring(Night.GameSave), "Game")
-
-if typeof(GameData) == "table" then
-    Night.GameRootId = GameData.rootPlaceId 
-    if Night.GameSave == "root" then
-        Night.GameSave = tostring(Night.GameRootId)
-    end
-end
-
-if UIConfig == "no file" then
-    Assets.Config.Save("UI", Night.Config.UI)
-end
-
-if GameConfig == "no file" and Night.CheckOtherConfig then
-    if Night.GameRootId == Night.GameSave then
-        GameConfig = Assets.Config.Load(tostring(game.PlaceId), "Game")
-    else
-        GameConfig = Assets.Config.Load(tostring(Night.GameRootId), "Game")
-    end
-end
-
-if GameConfig == "no file" then
-    Assets.Config.Save(tostring(Night.GameSave), getgenv().Night.Config.Game)
-end
-
--- 加载通用和特定游戏的脚本 (这是原版加载外部文件的地方)
+if typeof(GameData) == "table" then Night.GameRootId = GameData.rootPlaceId; if Night.GameSave == "root" then Night.GameSave = tostring(Night.GameRootId) end end
+if UIConfig == "no file" then Assets.Config.Save("UI", Night.Config.UI) end
+if GameConfig == "no file" and Night.CheckOtherConfig then if Night.GameRootId == Night.GameSave then GameConfig = Assets.Config.Load(tostring(game.PlaceId), "Game") else GameConfig = Assets.Config.Load(tostring(Night.GameRootId), "Game") end end
+if GameConfig == "no file" then Assets.Config.Save(tostring(Night.GameSave), getgenv().Night.Config.Game) end
 Assets.Main.Load("Universal")
 Assets.Main.Load(getgenv().Night.GameSave)
 Assets.Main.ToggleVisibility(true)
+if queue_on_teleport then table.insert(Night.Connections, Players.LocalPlayer.OnTeleport:Connect(function(state) if not Night.Teleporting then Night.Teleporting = true; local TeleportData = ""; if Night.InitSave then TeleportData = "getgenv().NightInit = {"; for i, v in Night.InitSave do if i ~= #Night.InitSave then if typeof(v) == "string" then TeleportData = TeleportData..tostring(i)..' = "'..tostring(v)..'" , ' else TeleportData = TeleportData..tostring(i).." = "..tostring(v).." , " end end end; TeleportData = string.sub(TeleportData, 0, #TeleportData-2).."}\n" end; if Night.Premium then TeleportData = TeleportData..[[ if not game:IsLoaded() then game.Loaded:Wait() end; if getgenv().NightInit and getgenv().NightInit.Dev and isfile("Night/Premium/Loader.lua") then loadstring(readfile("Night/Premium/Loader.lua"))() else loadstring(game:HttpGet("https://raw.githubusercontent.com/null-wtf/Night/refs/heads/main/Night/Premium/Loader.lua"))() end ]] else TeleportData = TeleportData..[[ if not game:IsLoaded() then game.Loaded:Wait() end; if getgenv().NightInit and getgenv().NightInit.Dev and isfile("Night/Loader.lua") then loadstring(readfile("Night/Loader.lua"))() else loadstring(game:HttpGet("https://raw.githubusercontent.com/null-wtf/Night/refs/heads/main/Night/Loader.luau"))() end ]] end; queue_on_teleport(TeleportData) end end)) end
+if Night.Mobile then if Camera then if 0.4 >= (Camera.ViewportSize.X / 1000) - 0.1 then Night.Config.UI.Scale = 0.4 else Night.Config.UI.Scale = (Camera.ViewportSize.X / 1000) - 0.1 end end end
+-- [核心加载逻辑结束]
 
--- 传送处理
-if queue_on_teleport then
-    table.insert(Night.Connections, Players.LocalPlayer.OnTeleport:Connect(function(state)
-        if not Night.Teleporting then
-            Night.Teleporting = true
-            
-            local TeleportData = ""
-            if Night.InitSave then
-                TeleportData = "getgenv().NightInit = {"
-                for i, v in Night.InitSave do
-                    if i ~= #Night.InitSave then
-                        if typeof(v) == "string" then
-                            TeleportData = TeleportData..tostring(i)..' = "'..tostring(v)..'" , '
-                        else
-                            TeleportData = TeleportData..tostring(i).." = "..tostring(v).." , "
-                        end
-                    end
-                end
-
-                TeleportData = string.sub(TeleportData, 0, #TeleportData-2).."}\n"
-            end
-
-            if Night.Premium then
-                TeleportData = TeleportData..[[
-                    if not game:IsLoaded() then game.Loaded:Wait() end
-                    if getgenv().NightInit and getgenv().NightInit.Dev and isfile("Night/Premium/Loader.lua") then loadstring(readfile("Night/Premium/Loader.lua"))() else loadstring(game:HttpGet("https://raw.githubusercontent.com/null-wtf/Night/refs/heads/main/Night/Premium/Loader.lua"))() end
-                ]]
-            else
-                TeleportData = TeleportData..[[
-                    if not game:IsLoaded() then game.Loaded:Wait() end
-                    if getgenv().NightInit and getgenv().NightInit.Dev and isfile("Night/Loader.lua") then loadstring(readfile("Night/Loader.lua"))() else loadstring(game:HttpGet("https://raw.githubusercontent.com/null-wtf/Night/refs/heads/main/Night/Loader.luau"))() end
-                ]]
-            end
-
-            queue_on_teleport(TeleportData)
-        end
-    end))
-end
-
--- 移动端适配
-if Night.Mobile then
-    if Camera then
-        if 0.4 >= (Camera.ViewportSize.X / 1000) - 0.1 then
-            Night.Config.UI.Scale = 0.4
-        else
-            Night.Config.UI.Scale = (Camera.ViewportSize.X / 1000) - 0.1
-        end
-    end
-end
 
 -- =================================================================
---                 --- [自定义模块注入开始] ---
--- 此处代码将在 Night UI 加载完成后，自动创建您的“玩家增强”模块
+--                 --- [自定义UI模板开始] ---
+--          在这里修改，打造您专属的 Night UI 界面
 -- =================================================================
 
-local function CreateCustomPlayerModule()
-    -- 确保所有 Night 组件都已就绪
-    task.wait() 
+local function setupCustomUI()
+    task.wait() -- 等待UI完全初始化
 
-    -- 再次获取最新的 Night 变量，确保安全
     local NightEnv = getgenv().Night
-    if not (NightEnv and NightEnv.Assets and NightEnv.Tabs) then return end
+    if not (NightEnv and NightEnv.Tabs and NightEnv.Tabs.Functions) then return end
 
+    local Tabs = NightEnv.Tabs
     local Functions = NightEnv.Assets.Functions
-    local Tabs = NightEnv.Tabs.Tabs
     local lplr = Functions.cloneref(game:GetService("Players")).LocalPlayer
 
-    -- 创建数据表
-    local ModuleData = {
-        Toggle = nil,
-        UnlimitedStamina = false,
-        WalkSpeed = 16,
-        JumpPower = 50,
-        WelcomeMessage = "欢迎！"
+    -- 步骤 1: 移除所有默认标签页
+    local defaultTabsToRemove = {"Player", "Combat", "Movement", "Render", "Utility", "World"}
+    for _, tabName in ipairs(defaultTabsToRemove) do
+        if Tabs.Tabs[tabName] and Tabs.Tabs[tabName].Functions and Tabs.Tabs[tabName].Functions.Remove then
+            pcall(Tabs.Tabs[tabName].Functions.Remove)
+        end
+    end
+    
+    -- 步骤 2: 【请在这里修改】定义您自己的标签页名称
+    local customTabsToCreate = {
+        "我的主页",
+        "战斗助手",
+        "世界设定",
+        "杂项功能",
+        "关于"
     }
 
-    -- 在 "Player" 标签页下创建新模块
-    ModuleData.Toggle = Tabs.Player.Functions.NewModule({
+    -- 步骤 3: 创建您的新标签页
+    for _, tabName in ipairs(customTabsToCreate) do
+        Tabs.Functions.NewTab(tabName)
+    end
+
+    Functions.Notify('自定义UI界面已创建！', 4)
+
+    -- 步骤 4: 【套用示例】将您的模块添加到新的标签页中
+    -- 注意：我们将把“玩家增强”模块添加到我们创建的第一个新标签页 "我的主页" 中
+    
+    -- 检查我们创建的标签页是否存在
+    local myHomePage = Tabs.Tabs["我的主页"]
+    if not myHomePage then
+        warn("无法找到自定义标签页 '我的主页'。模块未加载。")
+        return
+    end
+
+    -- 开始创建模块内容
+    local ModuleData = {
+        Toggle = nil, WalkSpeed = 16, JumpPower = 50, WelcomeMessage = "欢迎来到我的定制UI！"
+    }
+
+    ModuleData.Toggle = myHomePage.Functions.NewModule({
         Name = '玩家增强',
-        Description = '由一体化加载器创建的增强模块。',
+        Description = '这是一个放在自定义标签页的模块。',
         Icon = 'rbxassetid://10628748349',
-        Flag = 'PlayerEnhancements_LoaderIntegrated',
+        Flag = 'CustomPlayerEnhancements',
         Callback = function(self, enabled)
             if enabled then
                 Functions.Notify(ModuleData.WelcomeMessage, 5)
@@ -246,43 +131,43 @@ local function CreateCustomPlayerModule()
         end
     })
 
-    -- 添加控件
-    ModuleData.Toggle.Functions.Settings.MiniToggle({
-        Name = '无限体力', Flag = 'UnlimitedStamina_Loader', Default = false,
-        Callback = function(_, enabled) ModuleData.UnlimitedStamina = enabled; Functions.Notify('无限体力: ' .. (enabled and '开启' or '关闭'), 3) end
-    })
+    -- 为模块添加控件
     ModuleData.Toggle.Functions.Settings.Slider({
-        Name = '移动速度', Min = 16, Max = 100, Default = 16, Decimals = 0, Flag = 'WalkSpeed_Loader',
+        Name = '移动速度', Min = 16, Max = 100, Default = 16, Decimals = 0, Flag = 'CustomWalkSpeed',
         Callback = function(_, value) ModuleData.WalkSpeed = value; if ModuleData.Toggle.Data.Enabled and lplr.Character and lplr.Character:FindFirstChild("Humanoid") then lplr.Character.Humanoid.WalkSpeed = value end end
     })
     ModuleData.Toggle.Functions.Settings.Dropdown({
-        Name = '跳跃高度', Default = '默认', Options = {'默认', '高', '超高'}, SelectLimit = 1, Flag = 'JumpPower_Loader',
+        Name = '跳跃高度', Default = '默认', Options = {'默认', '高', '超高'}, SelectLimit = 1, Flag = 'CustomJumpPower',
         Callback = function(_, value) local p = {['默认']=50,['高']=100,['超高']=150}; ModuleData.JumpPower = p[value] or 50; if ModuleData.Toggle.Data.Enabled and lplr.Character and lplr.Character:FindFirstChild("Humanoid") then lplr.Character.Humanoid.JumpPower = ModuleData.JumpPower end end
     })
     ModuleData.Toggle.Functions.Settings.TextBox({
-        Name = '欢迎消息', Default = "欢迎使用！", PlaceHolderText = '输入消息...', Flag = 'WelcomeMsg_Loader',
+        Name = '欢迎消息', Default = "欢迎来到我的定制UI！", PlaceHolderText = '输入消息...', Flag = 'CustomWelcomeMsg',
         Callback = function(_, text) ModuleData.WelcomeMessage = text end
     })
-    
-    Functions.Notify('自定义玩家模块已注入！', 5)
+
+    -- 您可以继续在这里为其他自定义标签页（如“战斗助手”）添加更多模块...
+    -- local combatHelperPage = Tabs.Tabs["战斗助手"]
+    -- if combatHelperPage then
+    --     combatHelperPage.Functions.NewModule({ Name = '自动攻击', ... })
+    -- end
+
 end
 
--- 调用函数来创建我们的模块
-CreateCustomPlayerModule()
+-- 执行我们的自定义UI设置函数
+setupCustomUI()
 
 -- =================================================================
---                  --- [自定义模块注入结束] ---
+--                  --- [自定义UI模板结束] ---
 -- =================================================================
 
 
--- 原始加载器收尾工作
+-- [原始加载器收尾工作 - 无需修改]
 Night.Main = Assets.Main
 Night.LoadTime = os.clock() - Night.Load
 Assets.Notifications.Send({
     Description = "Night 已加载, 用时 " .. string.format("%.1f", getgenv().Night.LoadTime) .. " 秒",
     Duration = 5
 })
-
 task.delay(0.2, function()
     if not isfile("Night/Version.txt") then
         writefile("Night/Version.txt", "Current version: " .. Night.Version)
@@ -295,6 +180,5 @@ task.delay(0.2, function()
         end
     end
 end)
-
 Night.Loaded = true
 return Assets.Main
