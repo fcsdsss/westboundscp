@@ -49,7 +49,7 @@ local SilentAimSettings = {
     IndependentPanelPinned = false,
     LeakAndHitMode = false,
     Wallbang = false,
-    Wallbang2 = false,
+    Wallbang2 = false, -- 新增 Wallbang2
     EnableNameTargeting = false,
     TargetName1 = "",
     TargetName2 = "",
@@ -415,7 +415,7 @@ Toggles.EnabledToggle:OnChanged(function(Value) SilentAimSettings.Enabled = Valu
 MainGroupBox:AddToggle("TeamCheckToggle", { Text = "队伍检查", Default = SilentAimSettings.TeamCheck }):OnChanged(function(Value) SilentAimSettings.TeamCheck = Value end)
 MainGroupBox:AddToggle("VisibleCheckToggle", { Text = "可见性检查", Default = SilentAimSettings.VisibleCheck }):OnChanged(function(Value) SilentAimSettings.VisibleCheck = Value end)
 MainGroupBox:AddToggle("WallbangToggle", { Text = "穿墙", Default = SilentAimSettings.Wallbang}):OnChanged(function(Value) SilentAimSettings.Wallbang = Value end)
-MainGroupBox:AddToggle("Wallbang2Toggle", { Text = "穿墙2 (一路向西)", Default = SilentAimSettings.Wallbang2}):OnChanged(function(Value) SilentAimSettings.Wallbang2 = Value end)
+MainGroupBox:AddToggle("Wallbang2Toggle", { Text = "穿墙2 (Vape模式)", Default = SilentAimSettings.Wallbang2}):OnChanged(function(Value) SilentAimSettings.Wallbang2 = Value end)
 MainGroupBox:AddToggle("LeakAndHitToggle", { Text = "漏打模式", Default = SilentAimSettings.LeakAndHitMode}):OnChanged(function(Value) SilentAimSettings.LeakAndHitMode = Value end)
 MainGroupBox:AddDropdown("TargetModeDropdown", { Text = "目标种类", Default = "玩家", Values = {"玩家", "NPC", "所有"} }):OnChanged(function(Value) SilentAimSettings.TargetMode = Value end)
 MainGroupBox:AddDropdown("TargetPartDropdown", { Values = {"Head", "HumanoidRootPart", "Random"}, Default = SilentAimSettings.TargetPart, Text = "目标部位" }):OnChanged(function(Value) SilentAimSettings.TargetPart = Value end)
@@ -899,73 +899,66 @@ oldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(...)
     local Arguments = {...}
     local self = Arguments[1]
 
-    if SilentAimSettings.Enabled and SilentAimSettings.Wallbang2 and currentTargetPart and not checkcaller() then
-        if Method == "FireServer" and self:IsA("RemoteEvent") and self.Name == "GunShot" then
-            local parent = self.Parent
-            if parent and parent.Name == "Events" then
-                 local gunScripts = parent.Parent
-                 if gunScripts and gunScripts.Name == "GunScripts" and gunScripts.Parent == ReplicatedStorage then
-                    local originalEventArgs = Arguments[2]
-                    if type(originalEventArgs) == "table" and originalEventArgs.PlayerRootPos and originalEventArgs.cframe then
-                        
-                        local newEventArgs = {}
-                        for k, v in pairs(originalEventArgs) do
-                            newEventArgs[k] = v
-                        end
-
-                        local targetPos = currentTargetPart.Position
-                        newEventArgs.PlayerRootPos = targetPos
-                        
-                        local _, r11, r12, r13, r21, r22, r23, r31, r32, r33 = originalEventArgs.cframe:GetComponents()
-                        newEventArgs.cframe = CFrame.new(targetPos.X, targetPos.Y, targetPos.Z, r11, r12, r13, r21, r22, r23, r31, r32, r33)
-                        
-                        return oldNamecall(self, newEventArgs)
-                    end
-                 end
-            end
-        end
-    end
-
     if SilentAimSettings.Enabled and not checkcaller() and CalculateChance(SilentAimSettings.HitChance) and currentTargetPart then
         local currentMethod = SilentAimSettings.SilentAimMethod
+        
+        -- Wallbang 2 (Vape Logic)
+        if SilentAimSettings.Wallbang2 then
+            if Method == "Raycast" and currentMethod == Method then
+                if ValidateArguments(Arguments, ExpectedArguments.Raycast) then
+                    local origin = Arguments[2]
+                    local direction = getDirection(origin, currentTargetPart.Position)
+                    local wallbangParams = RaycastParams.new()
+                    wallbangParams.FilterType = Enum.RaycastFilterType.Include
+                    wallbangParams.FilterDescendantsInstances = {currentTargetPart} -- 只包含目标部位
+                    Arguments[3] = wallbangParams
+                    return oldNamecall(unpack(Arguments))
+                end
+            elseif (Method == "FindPartOnRay" or Method == "findPartOnRay" or Method == "FindPartOnRayWithIgnoreList" or Method == "FindPartOnRayWithWhitelist") and (currentMethod:lower():find("findpartonray")) then
+                 local origin = Arguments[2].Origin
+                 return currentTargetPart, currentTargetPart.Position, currentTargetPart.CFrame.LookVector, currentTargetPart.Material
+            end
+        end
+
+        -- Wallbang 1 (Original Logic)
+        if SilentAimSettings.Wallbang and not SilentAimSettings.Wallbang2 then
+            if Method == "Raycast" and currentMethod == Method then
+                if ValidateArguments(Arguments, ExpectedArguments.Raycast) then
+                    local origin = Arguments[2]
+                    local direction = getDirection(origin, currentTargetPart.Position)
+                    local wallbangParams = RaycastParams.new()
+                    wallbangParams.FilterType = Enum.RaycastFilterType.Include
+                    wallbangParams.FilterDescendantsInstances = {currentTargetPart.Parent} -- 包含整个模型
+                    local newArgs = {self, origin, direction, wallbangParams}
+                    return oldNamecall(unpack(newArgs))
+                end
+            elseif (Method == "FindPartOnRay" or Method == "findPartOnRay" or Method == "FindPartOnRayWithIgnoreList" or Method == "FindPartOnRayWithWhitelist") and (currentMethod:lower():find("findpartonray")) then
+                 local origin = Arguments[2].Origin
+                 return currentTargetPart, currentTargetPart.Position, currentTargetPart.CFrame.LookVector, currentTargetPart.Material
+            end
+        end
+
+        -- Standard Silent Aim Logic (No Wallbang)
         if Method == "FindPartOnRayWithIgnoreList" and currentMethod == Method then
             if ValidateArguments(Arguments, ExpectedArguments.FindPartOnRayWithIgnoreList) then
-                if SilentAimSettings.Wallbang then
-                    return currentTargetPart, currentTargetPart.Position, currentTargetPart.CFrame.LookVector, currentTargetPart.Material
-                end
                 local A_Ray = Arguments[2]
                 Arguments[2] = Ray.new(A_Ray.Origin, getDirection(A_Ray.Origin, currentTargetPart.Position))
                 return oldNamecall(unpack(Arguments))
             end
         elseif Method == "FindPartOnRayWithWhitelist" and currentMethod == Method then
             if ValidateArguments(Arguments, ExpectedArguments.FindPartOnRayWithWhitelist) then
-                if SilentAimSettings.Wallbang then
-                    return currentTargetPart, currentTargetPart.Position, currentTargetPart.CFrame.LookVector, currentTargetPart.Material
-                end
                 local A_Ray = Arguments[2]
                 Arguments[2] = Ray.new(A_Ray.Origin, getDirection(A_Ray.Origin, currentTargetPart.Position))
                 return oldNamecall(unpack(Arguments))
             end
         elseif (Method == "FindPartOnRay" or Method == "findPartOnRay") and currentMethod:lower() == Method:lower() then
             if ValidateArguments(Arguments, ExpectedArguments.FindPartOnRay) then
-                if SilentAimSettings.Wallbang then
-                    return currentTargetPart, currentTargetPart.Position, currentTargetPart.CFrame.LookVector, currentTargetPart.Material
-                end
                 local A_Ray = Arguments[2]
                 Arguments[2] = Ray.new(A_Ray.Origin, getDirection(A_Ray.Origin, currentTargetPart.Position))
                 return oldNamecall(unpack(Arguments))
             end
         elseif Method == "Raycast" and currentMethod == Method then
             if ValidateArguments(Arguments, ExpectedArguments.Raycast) then
-                if SilentAimSettings.Wallbang then
-                    local origin = Arguments[2]
-                    local direction = getDirection(origin, currentTargetPart.Position)
-                    local wallbangParams = RaycastParams.new()
-                    wallbangParams.FilterType = Enum.RaycastFilterType.Include
-                    wallbangParams.FilterDescendantsInstances = {currentTargetPart.Parent}
-                    local newArgs = {self, origin, direction, wallbangParams}
-                    return oldNamecall(unpack(newArgs))
-                end
                 Arguments[3] = getDirection(Arguments[2], currentTargetPart.Position)
                 return oldNamecall(unpack(Arguments))
             end
