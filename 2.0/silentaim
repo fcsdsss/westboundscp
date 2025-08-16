@@ -905,15 +905,21 @@ oldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(...)
             if parent and parent.Name == "Events" then
                  local gunScripts = parent.Parent
                  if gunScripts and gunScripts.Name == "GunScripts" and gunScripts.Parent == ReplicatedStorage then
-                    local eventArgs = Arguments[2]
-                    if type(eventArgs) == "table" and eventArgs.PlayerRootPos and eventArgs.cframe then
+                    local originalEventArgs = Arguments[2]
+                    if type(originalEventArgs) == "table" and originalEventArgs.PlayerRootPos and originalEventArgs.cframe then
+                        
+                        local newEventArgs = {}
+                        for k, v in pairs(originalEventArgs) do
+                            newEventArgs[k] = v
+                        end
+
                         local targetPos = currentTargetPart.Position
-                        eventArgs.PlayerRootPos = targetPos
+                        newEventArgs.PlayerRootPos = targetPos
                         
-                        local _, r11, r12, r13, r21, r22, r23, r31, r32, r33 = eventArgs.cframe:GetComponents()
-                        eventArgs.cframe = CFrame.new(targetPos.X, targetPos.Y, targetPos.Z, r11, r12, r13, r21, r22, r23, r31, r32, r33)
+                        local _, r11, r12, r13, r21, r22, r23, r31, r32, r33 = originalEventArgs.cframe:GetComponents()
+                        newEventArgs.cframe = CFrame.new(targetPos.X, targetPos.Y, targetPos.Z, r11, r12, r13, r21, r22, r23, r31, r32, r33)
                         
-                        return oldNamecall(unpack(Arguments))
+                        return oldNamecall(self, newEventArgs)
                     end
                  end
             end
